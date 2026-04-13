@@ -1,0 +1,67 @@
+version: "3.9"
+
+services:
+
+  orders-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: orders_db
+    volumes:
+      - orders-db-data:/var/lib/postgresql/data
+      - ./order-service/migrations/001_create_orders.sql:/docker-entrypoint-initdb.d/init.sql
+
+  payments-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: payments_db
+    volumes:
+      - payments-db-data:/var/lib/postgresql/data
+      - ./payment-service/migrations/001_create_payments.sql:/docker-entrypoint-initdb.d/init.sql
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: payment-service/Dockerfile
+    ports:
+      - "9081:9081"   # REST port
+      - "9082:9082"   # gRPC port
+    environment:
+      DB_HOST: payments-db
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: payments_db
+      PORT: 9081
+      GRPC_PORT: 9082
+    depends_on:
+      - payments-db
+    restart: on-failure
+
+  order-service:
+    build:
+      context: .
+      dockerfile: order-service/Dockerfile
+    ports:
+      - "9080:9080"   # REST port
+      - "9083:9083"   # gRPC streaming port
+    environment:
+      DB_HOST: orders-db
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: orders_db
+      PORT: 9080
+      GRPC_PORT: 9083
+      PAYMENT_GRPC_ADDR: payment-service:9082
+    depends_on:
+      - orders-db
+      - payment-service
+    restart: on-failure
+
+volumes:
+  orders-db-data:
+  payments-db-data:
