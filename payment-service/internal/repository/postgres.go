@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"payment-service/internal/domain"
 )
@@ -38,4 +39,38 @@ func (r *PostgresPaymentRepo) FindByOrderID(orderID string) (*domain.Payment, er
 		return nil, err
 	}
 	return &p, nil
+}
+
+// FindByAmountRange returns payments filtered by amount range.
+// min=0 means no lower bound, max=0 means no upper bound.
+func (r *PostgresPaymentRepo) FindByAmountRange(min, max int64) ([]*domain.Payment, error) {
+	query := `SELECT id, order_id, transaction_id, amount, status FROM payments WHERE 1=1`
+	args := []interface{}{}
+	argIdx := 1
+
+	if min > 0 {
+		query += fmt.Sprintf(" AND amount >= $%d", argIdx)
+		args = append(args, min)
+		argIdx++
+	}
+	if max > 0 {
+		query += fmt.Sprintf(" AND amount <= $%d", argIdx)
+		args = append(args, max)
+	}
+
+	rows, err := r.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var payments []*domain.Payment
+	for rows.Next() {
+		var p domain.Payment
+		if err := rows.Scan(&p.ID, &p.OrderID, &p.TransactionID, &p.Amount, &p.Status); err != nil {
+			return nil, err
+		}
+		payments = append(payments, &p)
+	}
+	return payments, nil
 }

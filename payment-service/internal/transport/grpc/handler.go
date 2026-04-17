@@ -23,21 +23,38 @@ func NewPaymentGRPCServer(uc *usecase.PaymentUseCase) *PaymentGRPCServer {
 
 // ProcessPayment handles incoming gRPC payment requests
 func (s *PaymentGRPCServer) ProcessPayment(ctx context.Context, req *pb.PaymentRequest) (*pb.PaymentResponse, error) {
-	// Validate input
 	if req.OrderId == "" || req.Amount <= 0 {
 		return nil, status.Error(codes.InvalidArgument, "order_id and amount are required")
 	}
 
-	// Call the use case (business logic stays here, untouched)
 	payment, err := s.uc.Authorize(req.OrderId, req.Amount)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	// Return gRPC response
 	return &pb.PaymentResponse{
 		TransactionId: payment.TransactionID,
 		Status:        payment.Status,
 		CreatedAt:     timestamppb.New(time.Now()),
 	}, nil
+}
+
+// ListPayments returns payments filtered by amount range
+func (s *PaymentGRPCServer) ListPayments(ctx context.Context, req *pb.ListPaymentsRequest) (*pb.ListPaymentsResponse, error) {
+	payments, err := s.uc.ListByAmountRange(req.MinAmount, req.MaxAmount)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	// Convert domain payments to protobuf responses
+	var pbPayments []*pb.PaymentResponse
+	for _, p := range payments {
+		pbPayments = append(pbPayments, &pb.PaymentResponse{
+			TransactionId: p.TransactionID,
+			Status:        p.Status,
+			CreatedAt:     timestamppb.New(time.Now()),
+		})
+	}
+
+	return &pb.ListPaymentsResponse{Payments: pbPayments}, nil
 }

@@ -1,6 +1,8 @@
 package usecase
 
 import (
+	"errors"
+
 	"github.com/google/uuid"
 	"payment-service/internal/domain"
 )
@@ -42,4 +44,14 @@ func (uc *PaymentUseCase) Authorize(orderID string, amount int64) (*domain.Payme
 // GetByOrderID returns the payment for a given order
 func (uc *PaymentUseCase) GetByOrderID(orderID string) (*domain.Payment, error) {
 	return uc.repo.FindByOrderID(orderID)
+}
+
+// ListByAmountRange returns payments filtered by amount range.
+// Pass 0 for min or max to skip that limit.
+func (uc *PaymentUseCase) ListByAmountRange(min, max int64) ([]*domain.Payment, error) {
+	// Validate: if both are set, min must be <= max
+	if min > 0 && max > 0 && min > max {
+		return nil, errors.New("min_amount cannot be greater than max_amount")
+	}
+	return uc.repo.FindByAmountRange(min, max)
 }
